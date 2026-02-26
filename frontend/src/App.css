@@ -1,0 +1,137 @@
+/* App-specific styles */
+.App {
+    text-align: left;
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .print-break-before {
+        break-before: page;
+    }
+    
+    body {
+        font-size: 11pt;
+        line-height: 1.4;
+        color: #000;
+        background: #fff;
+    }
+    
+    .max-w-5xl,
+    .max-w-4xl,
+    .max-w-3xl {
+        max-width: 100%;
+        padding: 0;
+    }
+    
+    /* Hide navigation and buttons when printing */
+    nav,
+    button,
+    .btn {
+        display: none !important;
+    }
+    
+    /* Ensure cards print with borders */
+    [class*="Card"],
+    .border {
+        border: 1px solid #e5e7eb !important;
+        box-shadow: none !important;
+    }
+    
+    /* Page margins */
+    @page {
+        margin: 2cm;
+    }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Focus visible improvements */
+:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+}
+
+/* Selection colors */
+::selection {
+    background: hsl(var(--primary) / 0.2);
+    color: hsl(var(--primary));
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Animation utilities */
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.animate-slide-up {
+    animation: slideUp 0.4s ease-out forwards;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Wizard step transitions */
+.step-enter {
+    opacity: 0;
+    transform: translateX(20px);
+}
+
+.step-enter-active {
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 300ms, transform 300ms;
+}
+
+.step-exit {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.step-exit-active {
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 300ms, transform 300ms;
+}

@@ -1,0 +1,194 @@
+{
+  "timestamp": "2026-02-24T16:55:54.187683",
+  "total_tests": 31,
+  "passed_tests": 31,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "test": "API Root",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:50.584067"
+    },
+    {
+      "test": "Health Check",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:50.735725"
+    },
+    {
+      "test": "Get Questions",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:50.900314"
+    },
+    {
+      "test": "Questions Structure Valid",
+      "success": true,
+      "details": "Found 12 questions, version 1.0.0",
+      "timestamp": "2026-02-24T16:55:50.900952"
+    },
+    {
+      "test": "Expected Questions Present",
+      "success": true,
+      "details": "Found: ['q1_company_role', 'q2_deployment', 'q3_domain', 'q4_decision_impact', 'q5_data_types']...",
+      "timestamp": "2026-02-24T16:55:50.900979"
+    },
+    {
+      "test": "Classify Assessment",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:51.098633"
+    },
+    {
+      "test": "Classification Response Valid",
+      "success": true,
+      "details": "Bucket: High-risk, Confidence: High",
+      "timestamp": "2026-02-24T16:55:51.099293"
+    },
+    {
+      "test": "User Registration",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:51.481999"
+    },
+    {
+      "test": "Registration Token Valid",
+      "success": true,
+      "details": "User ID: b93cdabd-8cbe-4d53-9356-dcf68df2847c",
+      "timestamp": "2026-02-24T16:55:51.484212"
+    },
+    {
+      "test": "User Login",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:51.908284"
+    },
+    {
+      "test": "Login Token Valid",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-02-24T16:55:51.908929"
+    },
+    {
+      "test": "Get Current User",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:52.036027"
+    },
+    {
+      "test": "Get Settings",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:52.174935"
+    },
+    {
+      "test": "Settings Structure Valid",
+      "success": true,
+      "details": "Currency: EUR",
+      "timestamp": "2026-02-24T16:55:52.175570"
+    },
+    {
+      "test": "Update Settings",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:52.333154"
+    },
+    {
+      "test": "Create Project",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:52.496981"
+    },
+    {
+      "test": "Project Creation Valid",
+      "success": true,
+      "details": "Project ID: 28d1d7fa-5d20-4866-ae40-08203bfe1231",
+      "timestamp": "2026-02-24T16:55:52.497597"
+    },
+    {
+      "test": "List Projects",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:52.655250"
+    },
+    {
+      "test": "Get Project",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:52.876452"
+    },
+    {
+      "test": "Update Project",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:52.995290"
+    },
+    {
+      "test": "Create Assessment",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:53.180561"
+    },
+    {
+      "test": "Assessment Creation Valid",
+      "success": true,
+      "details": "Assessment ID: b136a7c4-48fd-4889-8c30-572692696517",
+      "timestamp": "2026-02-24T16:55:53.181188"
+    },
+    {
+      "test": "Assessment Classification Generated",
+      "success": true,
+      "details": "Bucket: High-risk",
+      "timestamp": "2026-02-24T16:55:53.181205"
+    },
+    {
+      "test": "Assessment Roadmap Generated",
+      "success": true,
+      "details": "Tasks: 18",
+      "timestamp": "2026-02-24T16:55:53.181212"
+    },
+    {
+      "test": "Get Assessment",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:53.340458"
+    },
+    {
+      "test": "List Project Assessments",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:53.657920"
+    },
+    {
+      "test": "Calculate Fine Exposure",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:53.901429"
+    },
+    {
+      "test": "Estimator Response Valid",
+      "success": true,
+      "details": "Range: 75000.0 - 350000.0 EUR",
+      "timestamp": "2026-02-24T16:55:53.902083"
+    },
+    {
+      "test": "Export Assessment",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:54.022693"
+    },
+    {
+      "test": "Export Response Valid",
+      "success": true,
+      "details": "Export data structure correct",
+      "timestamp": "2026-02-24T16:55:54.023306"
+    },
+    {
+      "test": "Delete Test Project",
+      "success": true,
+      "details": "Status: 200 (expected 200)",
+      "timestamp": "2026-02-24T16:55:54.186780"
+    }
+  ]
+}

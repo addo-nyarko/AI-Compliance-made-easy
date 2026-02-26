@@ -1,0 +1,147 @@
+{
+  "identity": {
+    "persona": "E1",
+    "role": "Anti-AI Designer",
+    "mission": "Create a 'Swiss Compliance' aesthetic that is authoritative, clear, and developer-friendly, avoiding generic SaaS tropes.",
+    "principles": [
+      "Fusion over Imitation: Mix Swiss Poster design with modern SaaS utility.",
+      "Emotion First: Evoke 'Trust' and 'Clarity'.",
+      "Content is King: Typography is the primary interface.",
+      "Zoom In: Focus on the data that matters.",
+      "Negative Space: Use whitespace to reduce cognitive load."
+    ]
+  },
+  "theme": {
+    "name": "Swiss Compliance",
+    "mode": "light",
+    "modes": {
+      "light": {
+        "background": "#FFFFFF",
+        "foreground": "#0F172A",
+        "card": "#FFFFFF",
+        "card_foreground": "#0F172A",
+        "popover": "#FFFFFF",
+        "popover_foreground": "#0F172A",
+        "primary": "#003399",
+        "primary_foreground": "#FFFFFF",
+        "secondary": "#F0F4F8",
+        "secondary_foreground": "#0F172A",
+        "muted": "#F1F5F9",
+        "muted_foreground": "#64748B",
+        "accent": "#F1F5F9",
+        "accent_foreground": "#0F172A",
+        "destructive": "#FF3B30",
+        "destructive_foreground": "#FFFFFF",
+        "border": "#E2E8F0",
+        "input": "#E2E8F0",
+        "ring": "#003399"
+      },
+      "dark": {
+        "background": "#020617",
+        "foreground": "#F8FAFC",
+        "card": "#0F172A",
+        "card_foreground": "#F8FAFC",
+        "popover": "#0F172A",
+        "popover_foreground": "#F8FAFC",
+        "primary": "#3B82F6",
+        "primary_foreground": "#FFFFFF",
+        "secondary": "#1E293B",
+        "secondary_foreground": "#F8FAFC",
+        "muted": "#1E293B",
+        "muted_foreground": "#94A3B8",
+        "accent": "#1E293B",
+        "accent_foreground": "#F8FAFC",
+        "destructive": "#EF4444",
+        "destructive_foreground": "#FFFFFF",
+        "border": "#1E293B",
+        "input": "#1E293B",
+        "ring": "#3B82F6"
+      }
+    }
+  },
+  "typography": {
+    "headings": {
+      "family": "Chivo, sans-serif",
+      "weights": ["400", "700", "900"],
+      "usage": "All headings (h1-h6). Use 'tracking-tight' for sizes above 24px."
+    },
+    "body": {
+      "family": "Manrope, sans-serif",
+      "weights": ["400", "500", "600"],
+      "usage": "All body text, inputs, and buttons. Excellent for digits."
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "usage": "Code snippets, API keys, technical data."
+    }
+  },
+  "layout": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "grid": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-12 gap-6",
+      "marketing": "grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12"
+    },
+    "spacing": {
+      "section": "py-16 md:py-24",
+      "element": "space-y-6"
+    }
+  },
+  "components": {
+    "buttons": {
+      "default": "rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      "outline": "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+      "ghost": "hover:bg-accent hover:text-accent-foreground",
+      "link": "text-primary underline-offset-4 hover:underline"
+    },
+    "cards": {
+      "base": "rounded-lg border bg-card text-card-foreground shadow-sm",
+      "hover": "hover:shadow-md transition-shadow duration-200"
+    },
+    "inputs": {
+      "base": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "bg-white/70 backdrop-blur-xl border border-white/20 shadow-sm",
+    "gradients": {
+      "hero": "bg-gradient-to-br from-blue-50 to-white",
+      "risk_high": "bg-gradient-to-r from-red-500 to-red-600",
+      "risk_low": "bg-gradient-to-r from-emerald-500 to-emerald-600"
+    },
+    "shadows": {
+      "soft": "shadow-[0_2px_10px_rgba(0,0,0,0.05)]",
+      "sharp": "shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+    }
+  },
+  "motion": {
+    "default_transition": "transition-all duration-200 ease-in-out",
+    "hover_lift": "hover:-translate-y-1",
+    "page_enter": "animate-in fade-in slide-in-from-bottom-4 duration-500"
+  },
+  "assets": {
+    "images": {
+      "hero_abstract": "https://images.unsplash.com/photo-1693269276499-5d71d866785f",
+      "team_collaboration": "https://images.unsplash.com/photo-1757405930202-b2c3e11570fc"
+    },
+    "icons": "Lucide React (default). Use 'stroke-width={1.5}' for a cleaner look."
+  },
+  "instructions_to_main_agent": [
+    "1. INSTALL FONTS: Add 'Chivo' and 'Manrope' from Google Fonts to index.html or import in CSS.",
+    "2. UPDATE TAILWIND: Update tailwind.config.js with the colors and font families defined above.",
+    "3. CREATE LAYOUTS: Use the 'Bento' grid strategy for the dashboard. Avoid equal-width columns where possible.",
+    "4. USE SHADCN: Use the existing Shadcn components but override the rounded-xl defaults to rounded-md or rounded-lg for a more professional look.",
+    "5. DARK MODE: Implement a toggle. Default to Light Mode for the 'Compliance' feel, but allow Dark Mode for 'Developer' feel.",
+    "6. DATA-TESTID: Ensure every interactive element has a data-testid attribute.",
+    "7. NO GRADIENT TEXT: Avoid gradient text for headings unless it's a very subtle brand moment. Legibility is key.",
+    "8. MOBILE FIRST: Ensure all grids collapse to 1 column on mobile."
+  ],
+  "universal_guidelines": [
+    "Do not use 'Inter' for headings.",
+    "Do not use purple or teal for CTAs (use EU Blue or Signal Red).",
+    "Avoid center-aligned text for long paragraphs.",
+    "Use 2-3x more padding than you think is necessary.",
+    "Always add hover states to interactive elements."
+  ]
+}
