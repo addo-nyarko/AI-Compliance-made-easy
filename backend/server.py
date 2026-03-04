@@ -17,6 +17,7 @@ import openai
 from rules_engine import classify_assessment, RULES_VERSION
 from questions import QUESTIONS, QUESTION_SET_VERSION
 from roadmap_generator import generate_roadmap
+from fastapi.middleware.cors import CORSMiddleware
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -32,6 +33,22 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
 app = FastAPI(title="KODEX API")
+
+# This should be right after `app = FastAPI()`
+# Define the list of allowed origins (your frontend's URL)
+origins = [
+    "https://addo-nyarko.github.io",  # Your deployed frontend
+    "http://localhost:3000",         # For local development
+]
+
+# Add the CORS middleware to your FastAPI app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer(auto_error=False)
 
@@ -494,8 +511,104 @@ class ConversationResponse(BaseModel):
 
 # --- This is the new, more advanced conversation endpoint ---
 
+# --- Replacement for handle_conversation function ---
+
 @app.post("/api/conversation", response_model=ConversationResponse)
 async def handle_conversation(state: ConversationState):
+    """
+    Manages a multi-step conversation to guide a user through the compliance questions.
+    """
+    # Add defensive checks for a robust system
+    if not client:
+        raise HTTPException(status_code=503, detail="OpenAI client is not initialized. Check API key.")
+    if not db:
+        raise HTTPException(status_code=503, detail="Database connection is not available.")
+
+    # --- THIS IS THE CRITICAL FIX ---
+    # Manually build the list of questions to handle database-specific types correctly
+    all_questions_cursor = db.questions.find().sort("id", 1)
+    all_questions = []
+    async for doc in all_questions_cursor:
+        # Pydantic can fail on MongoDB's _id, so we build the object carefully
+        all_questions.append(Question(id=doc["id"], question=doc["question"], options=doc["options"]))
+    
+    # --- Step 1: If the user has sent a message, map their last answer ---
+    if state.messages and state.messages[-1].role == 'user':
+        last_user_message = state.messages[-1].content
+        question_to_map_index = state.current_question_index - 1
+        
+        if question_to_map_index >= 0 and question_to_map_index < len(all_questions):
+            question_to_map = all_questions[question_to_map_index]
+            
+            mapping_prompt = f"""
+            The user is answering: '{question_to_map.question}'
+            The user's response was: '{last_user_message}'
+            Based on their response, classify it as 'Yes', 'No', or 'Unsure'.
+            Respond with ONLY the word 'Yes', 'No', or 'Unsure'.
+            """
+            
+            try:
+                mapping_completion = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "system", "content": mapping_prompt}],
+                    temperature=0, max_tokens=5
+                )
+                mapped_answer = mapping_completion.choices[0].message.content.strip()
+                if mapped_answer not in ['Yes', 'No', 'Unsure']:
+                    mapped_answer = 'Unsure' # Default fallback
+                
+                state.answered_questions.append(
+                    AnsweredQuestion(question_text=question_to_map.question, answer=mapped_answer)
+                )
+            except Exception:
+                state.answered_questions.append(
+                    AnsweredQuestion(question_text=question_to_map.question, answer='Unsure')
+                )
+
+    # --- Step 2: Check if the conversation is finished ---
+    if state.current_question_index >= len(all_questions):
+        completion_message = "Thank you! We have completed the assessment. The final results are now available to review."
+        state.messages.append(ChatMessage(role='assistant', content=completion_message))
+        return ConversationResponse(
+            ai_message=completion_message, updated_state=state, is_complete=True
+        )
+
+    # --- Step 3: Ask the next question ---
+    current_question = all_questions[state.current_question_index]
+    
+    greeting = "Hello! I'm your Compliance Companion. I'll ask you a series of simple questions to complete your assessment. Let's start with the first one.\n\n"
+    
+    asking_prompt = f"""
+    You are a friendly, patient AI assistant named 'Compliance Companion'. Your audience is non-technical.
+    Your goal is to get an answer for a technical question by rephrasing it in simple terms.
+    The technical question you must get an answer for is: '{current_question.question}'
+    
+    Your task: Formulate a simple, easy-to-understand question to ask the user.
+    If this is the start of the conversation (index 0), begin with a friendly greeting.
+    Keep your response short and ask only one question at a time.
+    """
+    
+    conversation_context = [{"role": "system", "content": asking_prompt}]
+    if state.current_question_index == 0:
+        conversation_context.append({"role": "assistant", "content": greeting})
+    conversation_context.extend([msg.dict() for msg in state.messages])
+
+    try:
+        asking_completion = client.chat.completions.create(
+            model="gpt-4o-mini", messages=conversation_context, temperature=0.5, max_tokens=150
+        )
+        ai_response_message = asking_completion.choices[0].message.content.strip()
+    except Exception as e:
+        ai_response_message = "I'm sorry, I'm having a technical issue. Please try again in a moment."
+
+    # --- Step 4: Update and return the new state ---
+    state.messages.append(ChatMessage(role='assistant', content=ai_response_message))
+    state.current_question_index += 1
+
+    return ConversationResponse(
+        ai_message=ai_response_message, updated_state=state, is_complete=False
+    )
+
     """
     Manages a multi-step conversation to guide a user through the compliance questions.
     """
