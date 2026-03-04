@@ -499,27 +499,32 @@ async def handle_conversation(state: ConversationState):
     """
     Manages a multi-step conversation to guide a user through the compliance questions.
     """
+    # Add defensive checks for a robust system
     if not client:
-        raise HTTPException(status_code=500, detail="OpenAI client not initialized.")
+        raise HTTPException(status_code=503, detail="OpenAI client is not initialized. Check API key.")
+    if not db:
+        raise HTTPException(status_code=503, detail="Database connection is not available.")
 
-    # Get the full list of questions from the database (we'll need this a lot)
+    # --- THIS IS THE CRITICAL FIX ---
+    # Manually build the list of questions to handle database-specific types correctly
     all_questions_cursor = db.questions.find().sort("id", 1)
-    all_questions = [Question(**doc) for doc in await all_questions_cursor.to_list(length=100)]
+    all_questions = []
+    async for doc in all_questions_cursor:
+        # Pydantic can fail on MongoDB's _id, so we build the object carefully
+        all_questions.append(Question(id=doc["id"], question=doc["question"], options=doc["options"]))
     
     # --- Step 1: If the user has sent a message, map their last answer ---
     if state.messages and state.messages[-1].role == 'user':
         last_user_message = state.messages[-1].content
-        # The question we need to map is the *previous* one
         question_to_map_index = state.current_question_index - 1
         
-        if question_to_map_index >= 0:
+        if question_to_map_index >= 0 and question_to_map_index < len(all_questions):
             question_to_map = all_questions[question_to_map_index]
             
             mapping_prompt = f"""
-            The user is answering a series of technical questions.
-            The technical question was: '{question_to_map.question}'
+            The user is answering: '{question_to_map.question}'
             The user's response was: '{last_user_message}'
-            Based on the user's response, classify it as one of three options: 'Yes', 'No', or 'Unsure'.
+            Based on their response, classify it as 'Yes', 'No', or 'Unsure'.
             Respond with ONLY the word 'Yes', 'No', or 'Unsure'.
             """
             
@@ -527,72 +532,62 @@ async def handle_conversation(state: ConversationState):
                 mapping_completion = client.chat.completions.create(
                     model="gpt-3.5-turbo",
                     messages=[{"role": "system", "content": mapping_prompt}],
-                    temperature=0,
-                    max_tokens=5
+                    temperature=0, max_tokens=5
                 )
                 mapped_answer = mapping_completion.choices[0].message.content.strip()
+                if mapped_answer not in ['Yes', 'No', 'Unsure']:
+                    mapped_answer = 'Unsure' # Default fallback
                 
-                # Add the structured answer to our state
                 state.answered_questions.append(
                     AnsweredQuestion(question_text=question_to_map.question, answer=mapped_answer)
                 )
-            except Exception as e:
-                print(f"Error mapping answer: {e}")
-                # Don't stop the conversation; just mark as unsure
+            except Exception:
                 state.answered_questions.append(
                     AnsweredQuestion(question_text=question_to_map.question, answer='Unsure')
                 )
 
     # --- Step 2: Check if the conversation is finished ---
     if state.current_question_index >= len(all_questions):
-        completion_message = "Thank you! We have completed the assessment. You can now close this window."
+        completion_message = "Thank you! We have completed the assessment. The final results are now available to review."
         state.messages.append(ChatMessage(role='assistant', content=completion_message))
         return ConversationResponse(
-            ai_message=completion_message,
-            updated_state=state,
-            is_complete=True
+            ai_message=completion_message, updated_state=state, is_complete=True
         )
 
     # --- Step 3: Ask the next question ---
     current_question = all_questions[state.current_question_index]
     
+    greeting = "Hello! I'm your Compliance Companion. I'll ask you a series of simple questions to complete your assessment. Let's start with the first one.\n\n"
+    
     asking_prompt = f"""
-    You are a friendly, patient, and helpful AI assistant named 'Compliance Companion'. Your audience is non-technical employees.
-    Your goal is to get a clear answer for a technical question by having a simple, conversational exchange.
+    You are a friendly, patient AI assistant named 'Compliance Companion'. Your audience is non-technical.
+    Your goal is to get an answer for a technical question by rephrasing it in simple terms.
     The technical question you must get an answer for is: '{current_question.question}'
-
-    Here are some examples of how you might rephrase it:
-    - For a question about 'vulnerability scans', you could ask, 'Do we regularly check our systems for security weaknesses?'
-    - For a question about 'data encryption', you could ask, 'Is the information we store scrambled so unauthorized people can't read it?'
-
-    Your task now: Based on the technical question provided, formulate a simple, easy-to-understand question to ask the user.
-    If this is the start of the conversation, begin with a friendly greeting.
-    Keep your response short and ask only one question at a time. Do not reveal the technical question.
+    
+    Your task: Formulate a simple, easy-to-understand question to ask the user.
+    If this is the start of the conversation (index 0), begin with a friendly greeting.
+    Keep your response short and ask only one question at a time.
     """
     
-    # Add the main prompt and the user's message history to the context
-    conversation_context = [{"role": "system", "content": asking_prompt}] + [msg.dict() for msg in state.messages]
+    conversation_context = [{"role": "system", "content": asking_prompt}]
+    if state.current_question_index == 0:
+        conversation_context.append({"role": "assistant", "content": greeting})
+    conversation_context.extend([msg.dict() for msg in state.messages])
 
     try:
         asking_completion = client.chat.completions.create(
-            model="gpt-4o-mini", # A smart but cost-effective model for conversation
-            messages=conversation_context,
-            temperature=0.7, # Allows for more natural, less robotic conversation
-            max_tokens=150
+            model="gpt-4o-mini", messages=conversation_context, temperature=0.5, max_tokens=150
         )
         ai_response_message = asking_completion.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error getting next question: {e}")
-        ai_response_message = "I'm sorry, I'm having trouble at the moment. Could you please try again?"
+        ai_response_message = "I'm sorry, I'm having a technical issue. Please try again in a moment."
 
     # --- Step 4: Update and return the new state ---
     state.messages.append(ChatMessage(role='assistant', content=ai_response_message))
-    state.current_question_index += 1 # Move to the next question for the *next* turn
+    state.current_question_index += 1
 
     return ConversationResponse(
-        ai_message=ai_response_message,
-        updated_state=state,
-        is_complete=False
+        ai_message=ai_response_message, updated_state=state, is_complete=False
     )
 
 # --- End: New Conversation Endpoint ---
