@@ -1,0 +1,41 @@
+/* === PASTE THIS ENTIRE CODE BLOCK INTO frontend/src/pages/Scan.css === */
+
+.chat-body {
+    height: 60vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+}
+
+.message-container {
+    display: flex;
+    margin-bottom: 0.75rem;
+}
+
+.message-container.user {
+    justify-content: flex-end;
+}
+
+.message-container.assistant {
+    justify-content: flex-start;
+}
+
+.message-bubble {
+    max-width: 80%;
+    padding: 0.75rem 1rem;
+    border-radius: 1.25rem;
+    word-wrap: break-word;
+}
+
+.message-container.user .message-bubble {
+    background-color: #007bff;
+    color: white;
+    border-top-right-radius: 0.25rem;
+}
+
+.message-container.assistant .message-bubble {
+    background-color: #f1f0f0;
+    color: black;
+    border-top-left-radius: 0.25rem;
+}

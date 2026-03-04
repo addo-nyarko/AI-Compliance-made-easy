@@ -1,411 +1,224 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
-import { classifyAPI, projectsAPI, assessmentsAPI } from '@/lib/api';
-import { draftStorage } from '@/lib/storage';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, Loader2, AlertTriangle, HelpCircle, CheckCircle } from 'lucide-react';
-import { toast } from 'sonner';
+/* === PASTE THIS ENTIRE CODE BLOCK INTO frontend/src/pages/Scan.js === */
 
-// Wizard steps configuration
-const WIZARD_STEPS = [
-    { id: 'role', title: 'Your Role', questions: ['q1_company_role', 'q2_deployment'] },
-    { id: 'domain', title: 'Domain & Impact', questions: ['q3_domain', 'q4_decision_impact'] },
-    { id: 'data', title: 'Data & Privacy', questions: ['q5_data_types', 'q6_biometric'] },
-    { id: 'operations', title: 'Operations', questions: ['q7_safety_critical', 'q8_human_oversight'] },
-    { id: 'behavior', title: 'Behavior & Logging', questions: ['q9_behavior', 'q10_logging'] },
-    { id: 'context', title: 'Additional Context', questions: ['q11_use_case', 'q12_concern'] },
-];
+import React, { useState, useEffect } from 'react';
+import { Container, Button, Modal, Form, Spinner, ListGroup, Card, Alert, Row, Col } from 'react-bootstrap';
+import axios from 'axios';
+import './Scan.css'; // We'll create this CSS file next
 
-export default function Scan() {
+
+function Scan() {
+    // === State for Manual Form ===
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
-    const [currentStep, setCurrentStep] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState('');
-    const [showAuthDialog, setShowAuthDialog] = useState(false);
-    const [showProjectDialog, setShowProjectDialog] = useState(false);
-    const [projectName, setProjectName] = useState('');
-    const [classificationResult, setClassificationResult] = useState(null);
-    
-    const { isAuthenticated } = useAuth();
-    const navigate = useNavigate();
-    
-    // Load questions from API
+    const [formLoading, setFormLoading] = useState(true);
+    const [formError, setFormError] = useState('');
+
+    // === State for Chatbot ===
+    const [showModal, setShowModal] = useState(false);
+    const [chatLoading, setChatLoading] = useState(false);
+    const [chatError, setChatError] = useState('');
+    const [conversationState, setConversationState] = useState(null);
+    const [currentUserMessage, setCurrentUserMessage] = useState('');
+    const [isComplete, setIsComplete] = useState(false);
+
+    // --- Fetch Questions for Manual Form ---
     useEffect(() => {
-        const loadQuestions = async () => {
+        const fetchQuestions = async () => {
             try {
-                const data = await classifyAPI.getQuestions();
-                setQuestions(data.questions);
-                
-                // Check for saved draft
-                const draft = draftStorage.getDraft();
-                if (draft && draft.answers) {
-                    setAnswers(draft.answers);
-                    if (draft.step !== undefined) {
-                        setCurrentStep(Math.min(draft.step, WIZARD_STEPS.length - 1));
-                    }
-                }
+                const response = await axios.get('https://ai-compliance-made-easy.onrender.com/api/questions');
+                setQuestions(response.data);
+                // Initialize answers state
+                const initialAnswers = {};
+                response.data.forEach(q => {
+                    initialAnswers[q.id] = '';
+                });
+                setAnswers(initialAnswers);
             } catch (err) {
-                setError('Failed to load questions. Please try again.');
+                setFormError('Failed to load questions. Please refresh the page.');
                 console.error(err);
             } finally {
-                setLoading(false);
+                setFormLoading(false);
             }
         };
-        
-        loadQuestions();
+        fetchQuestions();
     }, []);
-    
-    // Auto-save draft
-    const saveDraft = useCallback((newAnswers, step) => {
-        draftStorage.saveDraft(newAnswers, step);
-    }, []);
-    
-    // Handle answer change
-    const handleAnswer = (questionId, value) => {
-        const newAnswers = { ...answers, [questionId]: value };
-        setAnswers(newAnswers);
-        saveDraft(newAnswers, currentStep);
+
+    // --- Manual Form Logic ---
+    const handleAnswerChange = (questionId, answer) => {
+        setAnswers(prev => ({ ...prev, [questionId]: answer }));
     };
-    
-    // Get question by ID
-    const getQuestion = (id) => questions.find(q => q.id === id);
-    
-    // Get current step questions
-    const getCurrentStepQuestions = () => {
-        const step = WIZARD_STEPS[currentStep];
-        return step.questions.map(qId => getQuestion(qId)).filter(Boolean);
+
+    const handleManualSubmit = (e) => {
+        e.preventDefault();
+        // Here you would add the logic to process the 'answers' object
+        alert('Manual form submitted! Results:\n' + JSON.stringify(answers, null, 2));
     };
-    
-    // Check if step is complete
-    const isStepComplete = (stepIndex) => {
-        const step = WIZARD_STEPS[stepIndex];
-        return step.questions.every(qId => {
-            const q = getQuestion(qId);
-            if (!q) return true;
-            if (!q.required) return true;
-            return answers[qId] !== undefined && answers[qId] !== '';
-        });
-    };
-    
-    // Navigate steps
-    const nextStep = () => {
-        if (currentStep < WIZARD_STEPS.length - 1) {
-            setCurrentStep(currentStep + 1);
-            saveDraft(answers, currentStep + 1);
-        }
-    };
-    
-    const prevStep = () => {
-        if (currentStep > 0) {
-            setCurrentStep(currentStep - 1);
-            saveDraft(answers, currentStep - 1);
-        }
-    };
-    
-    // Handle completion
-    const handleComplete = async () => {
-        if (!isAuthenticated) {
-            setShowAuthDialog(true);
-            return;
-        }
-        
-        setShowProjectDialog(true);
-    };
-    
-    // Create project and assessment
-    const createAssessment = async () => {
-        if (!projectName.trim()) {
-            toast.error('Please enter a project name');
-            return;
-        }
-        
-        setSubmitting(true);
-        setError('');
-        
+
+    // --- Chatbot Logic ---
+    const handleStartConversation = async () => {
+        setShowModal(true);
+        setChatLoading(true);
+        setChatError('');
+        setIsComplete(false);
+
+        const initialState = { messages: [], answered_questions: [], current_question_index: 0 };
+
         try {
-            // Create project
-            const project = await projectsAPI.create({ name: projectName });
-            
-            // Create assessment
-            const assessment = await assessmentsAPI.create({
-                project_id: project.id,
-                answers_json: answers
-            });
-            
-            // Clear draft
-            draftStorage.clearDraft();
-            
-            // Navigate to results
-            navigate(`/results/${assessment.id}`);
-            toast.success('Assessment complete!');
+            const response = await axios.post('https://ai-compliance-made-easy.onrender.com/api/conversation', initialState);
+            setConversationState(response.data.updated_state);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to save assessment');
-            console.error(err);
+            setChatError('Failed to start the conversation. Please try again.');
         } finally {
-            setSubmitting(false);
+            setChatLoading(false);
         }
     };
-    
-    // Preview classification (for current answers)
-    const previewClassification = async () => {
+
+    const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!currentUserMessage.trim()) return;
+
+        setChatLoading(true);
+        setChatError('');
+
+        const updatedMessages = [...conversationState.messages, { role: 'user', content: currentUserMessage }];
+        const stateToSend = { ...conversationState, messages: updatedMessages };
+        
+        setCurrentUserMessage('');
+
         try {
-            const result = await classifyAPI.classify(answers);
-            setClassificationResult(result);
+            const response = await axios.post('https://ai-compliance-made-easy.onrender.com/api/conversation', stateToSend);
+            setConversationState(response.data.updated_state);
+            if (response.data.is_complete) {
+                setIsComplete(true);
+            }
         } catch (err) {
-            console.error('Preview failed:', err);
+            setChatError('There was an error communicating with the assistant. Please try sending your message again.');
+        } finally {
+            setChatLoading(false);
         }
     };
-    
-    // Progress percentage
-    const progress = ((currentStep + 1) / WIZARD_STEPS.length) * 100;
-    
-    if (loading) {
-        return (
-            <div className="min-h-[60vh] flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
-    
-    if (error && !questions.length) {
-        return (
-            <div className="max-w-2xl mx-auto px-4 py-12">
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                </Alert>
-            </div>
-        );
-    }
-    
-    const currentStepData = WIZARD_STEPS[currentStep];
-    const stepQuestions = getCurrentStepQuestions();
-    const canProceed = isStepComplete(currentStep);
-    const isLastStep = currentStep === WIZARD_STEPS.length - 1;
-    
+
+    const handleCloseChat = () => {
+        setShowModal(false);
+        // Optional: Reset chat state if you want it to be fresh every time
+        // setConversationState(null);
+        // setIsComplete(false);
+    };
+
+    // --- Main Component Render ---
     return (
-        <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
-            {/* Progress header */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-muted-foreground">
-                        Step {currentStep + 1} of {WIZARD_STEPS.length}
-                    </span>
-                    <span className="text-sm font-medium text-muted-foreground">
-                        {Math.round(progress)}% complete
-                    </span>
-                </div>
-                <Progress value={progress} className="h-2" data-testid="scan-progress" />
-            </div>
-            
-            {/* Step content */}
-            <Card className="mb-8" data-testid="scan-step-card">
-                <CardHeader>
-                    <CardTitle className="font-heading text-xl sm:text-2xl" data-testid="scan-step-title">
-                        {currentStepData.title}
-                    </CardTitle>
-                    <CardDescription>
-                        Answer the questions below to help us assess your AI system.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-8">
-                    {stepQuestions.map((question) => (
-                        <QuestionField
-                            key={question.id}
-                            question={question}
-                            value={answers[question.id]}
-                            onChange={(value) => handleAnswer(question.id, value)}
-                        />
-                    ))}
-                </CardContent>
-            </Card>
-            
-            {/* Navigation */}
-            <div className="flex items-center justify-between">
-                <Button
-                    variant="outline"
-                    onClick={prevStep}
-                    disabled={currentStep === 0}
-                    data-testid="scan-prev-btn"
-                >
-                    <ChevronLeft className="mr-2 h-4 w-4" />
-                    Previous
-                </Button>
-                
-                {isLastStep ? (
-                    <Button
-                        onClick={handleComplete}
-                        disabled={!canProceed || submitting}
-                        data-testid="scan-complete-btn"
-                    >
-                        {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Complete Assessment
-                        <CheckCircle className="ml-2 h-4 w-4" />
-                    </Button>
-                ) : (
-                    <Button
-                        onClick={nextStep}
-                        disabled={!canProceed}
-                        data-testid="scan-next-btn"
-                    >
-                        Next
-                        <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
-                )}
-            </div>
-            
-            {/* Step indicators */}
-            <div className="flex items-center justify-center gap-2 mt-8">
-                {WIZARD_STEPS.map((step, index) => (
-                    <button
-                        key={step.id}
-                        onClick={() => {
-                            if (index <= currentStep || isStepComplete(index - 1)) {
-                                setCurrentStep(index);
-                            }
-                        }}
-                        disabled={index > currentStep && !isStepComplete(index - 1)}
-                        className={`h-2 rounded-full transition-all ${
-                            index === currentStep 
-                                ? 'w-8 bg-primary' 
-                                : index < currentStep 
-                                    ? 'w-2 bg-primary/50' 
-                                    : 'w-2 bg-muted'
-                        }`}
-                        data-testid={`scan-step-indicator-${index}`}
-                    />
-                ))}
-            </div>
-            
-            {/* Auth dialog */}
-            <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
-                <DialogContent data-testid="auth-required-dialog">
-                    <DialogHeader>
-                        <DialogTitle>Sign in to save your assessment</DialogTitle>
-                        <DialogDescription>
-                            Create a free account to save your results, track multiple projects, and export reports.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter className="flex-col sm:flex-row gap-2">
-                        <Button variant="outline" onClick={() => setShowAuthDialog(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={() => navigate('/auth?returnTo=/scan')} data-testid="auth-dialog-signin">
-                            Sign in / Sign up
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            
-            {/* Project name dialog */}
-            <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
-                <DialogContent data-testid="project-name-dialog">
-                    <DialogHeader>
-                        <DialogTitle>Name your assessment</DialogTitle>
-                        <DialogDescription>
-                            Give this assessment a name so you can find it later.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Label htmlFor="projectName">Project name</Label>
-                        <Input
-                            id="projectName"
-                            placeholder="e.g., HR Chatbot, Code Assistant, etc."
-                            value={projectName}
-                            onChange={(e) => setProjectName(e.target.value)}
-                            data-testid="project-name-input"
-                        />
-                    </div>
-                    {error && (
-                        <Alert variant="destructive">
-                            <AlertDescription>{error}</AlertDescription>
-                        </Alert>
+        <Container className="my-5">
+            <Row>
+                {/* --- PATH B: CHATBOT --- */}
+                <Col md={12} className="mb-4">
+                    <Card className="shadow-sm text-center">
+                        <Card.Body>
+                            <Card.Title as="h2">Don't Understand the Questions?</Card.Title>
+                            <Card.Text>
+                                Let our AI assistant guide you through the assessment with a simple conversation.
+                            </Card.Text>
+                            <Button variant="primary" size="lg" onClick={handleStartConversation}>
+                                Start Conversational Assessment
+                            </Button>
+                        </Card.Body>
+                    </Card>
+                </Col>
+
+                {/* --- PATH A: MANUAL FORM --- */}
+                <Col md={12}>
+                     <Card className="shadow-sm">
+                        <Card.Header as="h2" className="text-center">Or, Answer Manually</Card.Header>
+                        <Card.Body>
+                            {formLoading && <div className="text-center"><Spinner animation="border" /></div>}
+                            {formError && <Alert variant="danger">{formError}</Alert>}
+                            {!formLoading && !formError && (
+                                <Form onSubmit={handleManualSubmit}>
+                                    {questions.map((q, index) => (
+                                        <Card key={q.id} className="mb-3">
+                                            <Card.Body>
+                                                <Card.Title>{index + 1}. {q.question}</Card.Title>
+                                                <Form.Group>
+                                                    {q.options.map(opt => (
+                                                        <Form.Check
+                                                            key={opt}
+                                                            type="radio"
+                                                            id={`q-${q.id}-opt-${opt}`}
+                                                            label={opt}
+                                                            name={`question-${q.id}`}
+                                                            value={opt}
+                                                            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                                                            checked={answers[q.id] === opt}
+                                                        />
+                                                    ))}
+                                                </Form.Group>
+                                            </Card.Body>
+                                        </Card>
+                                    ))}
+                                    <div className="text-center">
+                                       <Button variant="success" type="submit" size="lg">Submit Manual Answers</Button>
+                                    </div>
+                                </Form>
+                            )}
+                        </Card.Body>
+                     </Card>
+                </Col>
+            </Row>
+
+            {/* --- Chatbot Modal --- */}
+            <Modal show={showModal} onHide={handleCloseChat} size="lg" backdrop="static">
+                <Modal.Header closeButton={!chatLoading}>
+                    <Modal.Title>Compliance Companion</Modal.Title>
+                </Modal.Header>
+                <Modal.Body className="chat-body">
+                    {chatError && <Alert variant="danger">{chatError}</Alert>}
+                    
+                    {isComplete && conversationState ? (
+                        <Card className="text-start">
+                            <Card.Header as="h4">Assessment Complete</Card.Header>
+                            <Card.Body>
+                                <Card.Text>Here are the results from your conversation:</Card.Text>
+                                <ListGroup variant="flush">
+                                    {conversationState.answered_questions.map((item, index) => (
+                                        <ListGroup.Item key={index}>
+                                            <strong>{item.question_text}:</strong> {item.answer}
+                                        </ListGroup.Item>
+                                    ))}
+                                </ListGroup>
+                            </Card.Body>
+                        </Card>
+                    ) : (
+                        <>
+                            {conversationState && conversationState.messages.map((msg, index) => (
+                                <div key={index} className={`message-container ${msg.role}`}>
+                                    <div className="message-bubble">{msg.content}</div>
+                                </div>
+                            ))}
+                            {chatLoading && (
+                                <div className="message-container assistant">
+                                    <div className="message-bubble">
+                                        <Spinner as="span" animation="grow" size="sm" /> Thinking...
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowProjectDialog(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={createAssessment} disabled={submitting || !projectName.trim()} data-testid="save-assessment-btn">
-                            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save & View Results
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+                </Modal.Body>
+                {!isComplete && (
+                    <Modal.Footer>
+                        <Form onSubmit={handleSendMessage} className="w-100">
+                            <Form.Control
+                                type="text"
+                                placeholder="Type your answer here..."
+                                value={currentUserMessage}
+                                onChange={(e) => setCurrentUserMessage(e.target.value)}
+                                disabled={chatLoading}
+                            />
+                        </Form>
+                    </Modal.Footer>
+                )}
+            </Modal>
+        </Container>
     );
 }
 
-// Question field component
-export function QuestionField({ question, value, onChange }) {
-    if (question.type === 'text') {
-        return (
-            <div className="space-y-3" data-testid={`question-${question.id}`}>
-                <div>
-                    <Label className="text-base font-medium">{question.label}</Label>
-                    {question.help_text && (
-                        <p className="text-sm text-muted-foreground mt-1">{question.help_text}</p>
-                    )}
-                </div>
-                <Textarea
-                    placeholder={question.placeholder}
-                    value={value || ''}
-                    onChange={(e) => onChange(e.target.value)}
-                    rows={3}
-                    data-testid={`input-${question.id}`}
-                />
-            </div>
-        );
-    }
-    
-    return (
-        <div className="space-y-3" data-testid={`question-${question.id}`}>
-            <div>
-                <Label className="text-base font-medium">{question.label}</Label>
-                {question.help_text && (
-                    <p className="text-sm text-muted-foreground mt-1 flex items-start gap-1">
-                        <HelpCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                        {question.help_text}
-                    </p>
-                )}
-            </div>
-            <RadioGroup
-                value={value || ''}
-                onValueChange={onChange}
-                className="space-y-2"
-            >
-                {question.options.map((option) => (
-                    <div
-                        key={option.value}
-                        className={`flex items-center space-x-3 rounded-lg border p-4 cursor-pointer transition-colors ${
-                            value === option.value 
-                                ? 'border-primary bg-primary/5' 
-                                : 'border-border hover:bg-muted/50'
-                        }`}
-                        onClick={() => onChange(option.value)}
-                    >
-                        <RadioGroupItem value={option.value} id={`${question.id}-${option.value}`} data-testid={`option-${question.id}-${option.value}`} />
-                        <Label 
-                            htmlFor={`${question.id}-${option.value}`} 
-                            className="flex-1 cursor-pointer font-normal"
-                        >
-                            {option.label}
-                        </Label>
-                    </div>
-                ))}
-            </RadioGroup>
-        </div>
-    );
-
-}
+export default Scan;
