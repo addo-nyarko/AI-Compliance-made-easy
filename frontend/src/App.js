@@ -1,13 +1,10 @@
 /* === PASTE THIS ENTIRE CODE BLOCK INTO frontend/src/App.js === */
 
 import React from 'react';
-// Correctly import HashRouter and other components
 import { HashRouter as Router, Route, Routes } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-// Import your components and pages
-import AppNavbar from './components/AppNavbar';
-// REMOVED: No longer importing the missing 'Home' page
+// We are only importing components that we know exist.
 import Scan from './pages/Scan';
 import ProjectDetail from './pages/ProjectDetail';
 import './App.css';
@@ -16,10 +13,10 @@ function App() {
   return (
     <Router>
       <div className="App">
-        <AppNavbar />
+        {/* The missing AppNavbar component has been removed. */}
         <main>
           <Routes>
-            {/* CORRECT: The root path "/" now directly loads the Scan component */}
+            {/* The Scan component will now be the main page. */}
             <Route path="/" element={<Scan />} />
             <Route path="/scan" element={<Scan />} />
             <Route path="/project/:id" element={<ProjectDetail />} />
