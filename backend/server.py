@@ -470,6 +470,133 @@ async def handle_chat(request: ChatRequest):
         print(f"An error occurred with the OpenAI API call: {e}")
         raise HTTPException(status_code=500, detail="Failed to get a response from the AI assistant.")
 
+# --- Start: New Conversation Endpoint ---
+
+# --- Add these new Pydantic Models ---
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class AnsweredQuestion(BaseModel):
+    question_text: str
+    answer: str # This will be 'Yes', 'No', or 'Unsure'
+
+class ConversationState(BaseModel):
+    messages: List[ChatMessage]
+    answered_questions: List[AnsweredQuestion]
+    current_question_index: int
+
+class ConversationResponse(BaseModel):
+    ai_message: str
+    updated_state: ConversationState
+    is_complete: bool
+
+# --- This is the new, more advanced conversation endpoint ---
+
+@app.post("/api/conversation", response_model=ConversationResponse)
+async def handle_conversation(state: ConversationState):
+    """
+    Manages a multi-step conversation to guide a user through the compliance questions.
+    """
+    if not client:
+        raise HTTPException(status_code=500, detail="OpenAI client not initialized.")
+
+    # Get the full list of questions from the database (we'll need this a lot)
+    all_questions_cursor = db.questions.find().sort("id", 1)
+    all_questions = [Question(**doc) for doc in await all_questions_cursor.to_list(length=100)]
+    
+    # --- Step 1: If the user has sent a message, map their last answer ---
+    if state.messages and state.messages[-1].role == 'user':
+        last_user_message = state.messages[-1].content
+        # The question we need to map is the *previous* one
+        question_to_map_index = state.current_question_index - 1
+        
+        if question_to_map_index >= 0:
+            question_to_map = all_questions[question_to_map_index]
+            
+            mapping_prompt = f"""
+            The user is answering a series of technical questions.
+            The technical question was: '{question_to_map.question}'
+            The user's response was: '{last_user_message}'
+            Based on the user's response, classify it as one of three options: 'Yes', 'No', or 'Unsure'.
+            Respond with ONLY the word 'Yes', 'No', or 'Unsure'.
+            """
+            
+            try:
+                mapping_completion = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "system", "content": mapping_prompt}],
+                    temperature=0,
+                    max_tokens=5
+                )
+                mapped_answer = mapping_completion.choices[0].message.content.strip()
+                
+                # Add the structured answer to our state
+                state.answered_questions.append(
+                    AnsweredQuestion(question_text=question_to_map.question, answer=mapped_answer)
+                )
+            except Exception as e:
+                print(f"Error mapping answer: {e}")
+                # Don't stop the conversation; just mark as unsure
+                state.answered_questions.append(
+                    AnsweredQuestion(question_text=question_to_map.question, answer='Unsure')
+                )
+
+    # --- Step 2: Check if the conversation is finished ---
+    if state.current_question_index >= len(all_questions):
+        completion_message = "Thank you! We have completed the assessment. You can now close this window."
+        state.messages.append(ChatMessage(role='assistant', content=completion_message))
+        return ConversationResponse(
+            ai_message=completion_message,
+            updated_state=state,
+            is_complete=True
+        )
+
+    # --- Step 3: Ask the next question ---
+    current_question = all_questions[state.current_question_index]
+    
+    asking_prompt = f"""
+    You are a friendly, patient, and helpful AI assistant named 'Compliance Companion'. Your audience is non-technical employees.
+    Your goal is to get a clear answer for a technical question by having a simple, conversational exchange.
+    The technical question you must get an answer for is: '{current_question.question}'
+
+    Here are some examples of how you might rephrase it:
+    - For a question about 'vulnerability scans', you could ask, 'Do we regularly check our systems for security weaknesses?'
+    - For a question about 'data encryption', you could ask, 'Is the information we store scrambled so unauthorized people can't read it?'
+
+    Your task now: Based on the technical question provided, formulate a simple, easy-to-understand question to ask the user.
+    If this is the start of the conversation, begin with a friendly greeting.
+    Keep your response short and ask only one question at a time. Do not reveal the technical question.
+    """
+    
+    # Add the main prompt and the user's message history to the context
+    conversation_context = [{"role": "system", "content": asking_prompt}] + [msg.dict() for msg in state.messages]
+
+    try:
+        asking_completion = client.chat.completions.create(
+            model="gpt-4o-mini", # A smart but cost-effective model for conversation
+            messages=conversation_context,
+            temperature=0.7, # Allows for more natural, less robotic conversation
+            max_tokens=150
+        )
+        ai_response_message = asking_completion.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error getting next question: {e}")
+        ai_response_message = "I'm sorry, I'm having trouble at the moment. Could you please try again?"
+
+    # --- Step 4: Update and return the new state ---
+    state.messages.append(ChatMessage(role='assistant', content=ai_response_message))
+    state.current_question_index += 1 # Move to the next question for the *next* turn
+
+    return ConversationResponse(
+        ai_message=ai_response_message,
+        updated_state=state,
+        is_complete=False
+    )
+
+# --- End: New Conversation Endpoint ---
+
 def calculate_fine_exposure(bucket: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
     turnover = inputs.get("turnover", 0)
     tier_params = inputs.get("tier_parameters", {})
