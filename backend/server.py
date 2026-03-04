@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
+import openai
 
 from rules_engine import classify_assessment, RULES_VERSION
 from questions import QUESTIONS, QUESTION_SET_VERSION
@@ -391,6 +392,83 @@ async def classify(data: ClassifyRequest):
 @api_router.get("/questions")
 async def get_questions():
     return {"questions": QUESTIONS, "version": QUESTION_SET_VERSION}
+
+# Define the data models for the chat request and response
+class ChatRequest(BaseModel):
+    context_question: str
+    user_message: str
+    options: List[str]
+
+class ChatResponse(BaseModel):
+    answer: str
+    mapped_index: int
+
+# Initialize the OpenAI client using the secret key from your Render environment
+try:
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+except Exception as e:
+    print(f"Error: OpenAI client could not be initialized. {e}")
+    client = None
+
+# This is the new endpoint for the chat assistant
+@app.post("/api/chat", response_model=ChatResponse)
+async def handle_chat(request: ChatRequest):
+    """
+    Receives a user's question, gets a specific answer from OpenAI,
+    and maps it to one of the provided options.
+    """
+    if not client:
+        raise HTTPException(
+            status_code=500, 
+            detail="OpenAI client is not configured. Check the OPENAI_API_KEY environment variable."
+        )
+
+    # This system prompt is carefully designed to instruct the AI to return only one
+    # of the provided options, which makes our job of parsing the answer much easier.
+    system_prompt = f"""
+    You are an expert AI compliance assistant. Your only job is to analyze a user's situation and choose the single best option from a list I provide.
+
+    The user is currently trying to answer this question: "{request.context_question}"
+
+    Here are the only valid options you can choose from: {request.options}
+
+    Read the user's message below and decide which of the options is the most appropriate response.
+
+    Your response MUST be only the exact text of the chosen option. Do not add any other words, explanation, or punctuation.
+    """
+
+    try:
+        # Call the OpenAI API
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": request.user_message}
+            ],
+            temperature=0,  # A value of 0 makes the AI's response predictable and less random
+            max_tokens=50   # Saves money and prevents long, irrelevant answers
+        )
+
+        # Extract the text from the AI's response
+        ai_answer = completion.choices[0].message.content.strip()
+
+        # Now, find which of the original options matches the AI's answer.
+        # This loop is tolerant to minor differences like extra spaces or capitalization.
+        for i, option_text in enumerate(request.options):
+            if ai_answer.lower() in option_text.lower() or option_text.lower() in ai_answer.lower():
+                # If a match is found, return the original option text and its index
+                return ChatResponse(answer=option_text, mapped_index=i)
+
+        # If the AI gives an answer that doesn't match any option, return an error.
+        raise HTTPException(
+            status_code=404, 
+            detail=f"AI response ('{ai_answer}') could not be mapped to a valid option."
+        )
+
+    except Exception as e:
+        # Handle any errors that occur during the API call
+        print(f"An error occurred with the OpenAI API call: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get a response from the AI assistant.")
 
 def calculate_fine_exposure(bucket: str, inputs: Dict[str, Any]) -> Dict[str, Any]:
     turnover = inputs.get("turnover", 0)

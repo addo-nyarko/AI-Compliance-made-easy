@@ -8,4 +8,5 @@ passlib[bcrypt]
 pydantic[email]
 python-dotenv
 PyJWT
+openai
 
