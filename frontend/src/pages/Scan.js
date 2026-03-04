@@ -1,4 +1,4 @@
-/* === PASTE THIS ENTIRE CODE BLOCK INTO frontend/src/pages/Scan.js === */
+/* === Replacement for frontend/src/pages/Scan.js === */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Container, Button, Modal, Form, Spinner, ListGroup, Card, Alert, Tabs, Tab } from 'react-bootstrap';
@@ -146,7 +146,7 @@ function Scan() {
                 <Modal.Body className="chat-body" ref={chatBodyRef}>
                     {chatError && <Alert variant="danger">{chatError}</Alert>}
                     {!conversationState && chatLoading && ( // Initial loading spinner
-                         <div className="text-center p-5"><Spinner animation="border" /></div>
+                        <div className="text-center p-5"><Spinner animation="border" /></div>
                     )}
                     {conversationState && conversationState.messages.map((msg, i) => (
                         <div key={i} className={`message-container ${msg.role}`}><div className="message-bubble">{msg.content}</div></div>
