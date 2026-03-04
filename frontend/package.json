@@ -58,7 +58,7 @@
   },
   "scripts": {
     "start": "craco start",
-    "build": "craco build",
+    "build": "set BUILD_PATH=docs&&craco build",
     "test": "craco test"
   },
   "browserslist": {

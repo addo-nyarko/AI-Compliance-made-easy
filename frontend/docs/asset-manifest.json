@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/AI-Compliance-made-easy/static/css/main.2a77f9fc.css",
+    "main.js": "/AI-Compliance-made-easy/static/js/main.b3309480.js",
+    "index.html": "/AI-Compliance-made-easy/index.html",
+    "main.2a77f9fc.css.map": "/AI-Compliance-made-easy/static/css/main.2a77f9fc.css.map",
+    "main.b3309480.js.map": "/AI-Compliance-made-easy/static/js/main.b3309480.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.2a77f9fc.css",
+    "static/js/main.b3309480.js"
+  ]
+}
