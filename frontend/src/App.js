@@ -1,95 +1,33 @@
-import React from "react";
-import "@/App.css";
+/* === PASTE THIS ENTIRE CODE BLOCK INTO frontend/src/App.js === */
+
+import React from 'react';
+// CORRECT: We are importing HashRouter and naming it Router
 import { HashRouter as Router, Route, Routes } from 'react-router-dom';
-import { Toaster } from "@/components/ui/sonner";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import 'bootstrap/dist/css/bootstrap.min.css';
 
-// Pages
-import Landing from "@/pages/Landing";
-import Auth from "@/pages/Auth";
-import Scan from "@/pages/Scan";
-import Results from "@/pages/Results";
-import Projects from "@/pages/Projects";
-import ProjectDetail from "@/pages/ProjectDetail";
-import Settings from "@/pages/Settings";
-import Export from "@/pages/Export";
-import Example from "@/pages/Example";
-
-// Layout
-import Layout from "@/components/Layout";
-
-// Protected route wrapper
-function ProtectedRoute({ children }) {
-    const { isAuthenticated, loading } = useAuth();
-    
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-    
-    if (!isAuthenticated) {
-        return <Navigate to="/auth" replace />;
-    }
-    
-    return children;
-}
-
-function AppRoutes() {
-    return (
-        <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<Landing />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/example" element={<Example />} />
-            
-            {/* Semi-protected: Can start scan without auth, but need auth to save */}
-            <Route path="/scan" element={<Layout><Scan /></Layout>} />
-            
-            {/* Protected routes */}
-            <Route path="/results/:id" element={
-                <ProtectedRoute>
-                    <Layout><Results /></Layout>
-                </ProtectedRoute>
-            } />
-            <Route path="/projects" element={
-                <ProtectedRoute>
-                    <Layout><Projects /></Layout>
-                </ProtectedRoute>
-            } />
-            <Route path="/projects/:id" element={
-                <ProtectedRoute>
-                    <Layout><ProjectDetail /></Layout>
-                </ProtectedRoute>
-            } />
-            <Route path="/settings" element={
-                <ProtectedRoute>
-                    <Layout><Settings /></Layout>
-                </ProtectedRoute>
-            } />
-            <Route path="/export/:id" element={
-                <ProtectedRoute>
-                    <Layout><Export /></Layout>
-                </ProtectedRoute>
-            } />
-            
-            {/* Catch all */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-    );
-}
+// Import your components and pages
+import AppNavbar from './components/AppNavbar';
+import Home from './pages/Home';
+import Scan from './pages/Scan';
+import ProjectDetail from './pages/ProjectDetail';
+import './App.css';
 
 function App() {
-    return (
-        <AuthProvider>
-            <BrowserRouter basename={process.env.PUBLIC_URL}>
-                <AppRoutes />
-                <Toaster position="top-right" richColors />
-            </BrowserRouter>
-        </AuthProvider>
-    );
+  return (
+    // CORRECT: This <Router> now correctly refers to HashRouter
+    <Router>
+      <div className="App">
+        <AppNavbar />
+        <main>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/scan" element={<Scan />} />
+            <Route path="/project/:id" element={<ProjectDetail />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
+  );
 }
 
 export default App;
