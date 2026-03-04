@@ -33,22 +33,28 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
 app = FastAPI(title="KODEX API")
+# --- IN backend/server.py, ADD THIS CODE NEAR THE TOP ---
 
-# This should be right after `app = FastAPI()`
-# Define the list of allowed origins (your frontend's URL)
+from fastapi.middleware.cors import CORSMiddleware
+
+# This should be right after your `app = FastAPI()` line
+
+# Define the exact URL of your frontend
 origins = [
-    "https://addo-nyarko.github.io",  # Your deployed frontend
-    "http://localhost:3000",         # For local development
+    "https://addo-nyarko.github.io",
 ]
 
-# Add the CORS middleware to your FastAPI app
+# Add the CORS "permission slip" to your app
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
 )
+
+# --- The rest of your server.py file continues below ---
+
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer(auto_error=False)
 
