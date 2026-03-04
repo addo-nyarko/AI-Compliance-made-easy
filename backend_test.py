@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 class KODEXAPITester:
-    def __init__(self, base_url: str = "https://act-navigator.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://https://ai-compliance-made-easy.onrender.com/"):
         self.base_url = base_url
         self.token = None
         self.user_id = None
