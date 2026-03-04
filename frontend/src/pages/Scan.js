@@ -1,4 +1,4 @@
-/* === Replacement for frontend/src/pages/Scan.js === */
+/* === PASTE THIS ENTIRE CODE BLOCK INTO frontend/src/pages/Scan.js === */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Container, Button, Modal, Form, Spinner, ListGroup, Card, Alert, Tabs, Tab } from 'react-bootstrap';
