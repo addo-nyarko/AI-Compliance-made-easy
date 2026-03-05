@@ -7,7 +7,6 @@ import os
 import motor.motor_asyncio
 
 # --- Database Connection Code ---
-# We are adding this back to test it.
 load_dotenv()
 MONGODB_URI = os.getenv("MONGODB_URI")
 
