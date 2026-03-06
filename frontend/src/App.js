@@ -1,10 +1,12 @@
-/* === PASTE THIS ENTIRE CODE BLOCK INTO frontend/src/App.js === */
+// In frontend/src/App.js
+// FINAL VERSION - This code matches your project structure.
 
 import React from 'react';
 import { HashRouter as Router, Route, Routes } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-// We are only importing components that we know exist.
+// Importing the pages that exist in your project
+import Landing from './pages/Landing'; // Using your Landing page as the homepage
 import Scan from './pages/Scan';
 import ProjectDetail from './pages/ProjectDetail';
 import './App.css';
@@ -13,11 +15,11 @@ function App() {
   return (
     <Router>
       <div className="App">
-        {/* The missing AppNavbar component has been removed. */}
+        {/* No AppNavbar, as it does not exist in your project */}
         <main>
           <Routes>
-            {/* The Scan component will now be the main page. */}
-            <Route path="/" element={<Scan />} />
+            {/* The root path "/" now correctly loads your Landing component */}
+            <Route path="/" element={<Landing />} />
             <Route path="/scan" element={<Scan />} />
             <Route path="/project/:id" element={<ProjectDetail />} />
           </Routes>

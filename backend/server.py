@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import motor.motor_asyncio
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel
+from typing import List
 
 # --- Models ---
 class ChatMessage(BaseModel):
@@ -39,8 +39,8 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Initialize clients
-client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
-db = client.get_database("compliance_db")
+db_client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
+db = db_client.get_database("compliance_db")
 
 from openai import OpenAI
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -106,15 +106,20 @@ async def handle_conversation(state: ConversationState):
     greeting = "Hello! I'm your Compliance Companion. I'll ask you a series of simple questions. Let's start.\n\n"
     
     asking_prompt = f"You are a friendly AI assistant. Your audience is non-technical. Rephrase this technical question in simple terms: '{current_question.question}'. Keep your response short and ask only one question at a time."
+    
+    full_prompt = []
     if state.current_question_index == 0:
-        asking_prompt = greeting + asking_prompt
+        full_prompt.append({"role": "system", "content": greeting + asking_prompt})
+    else:
+        full_prompt.append({"role": "system", "content": asking_prompt})
 
     try:
         asking_completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini", messages=[{"role": "system", "content": asking_prompt}], temperature=0.5, max_tokens=150
+            model="gpt-4o-mini", messages=full_prompt, temperature=0.5, max_tokens=150
         )
         ai_response_message = asking_completion.choices[0].message.content.strip()
-    except Exception:
+    except Exception as e:
+        print(f"Error calling OpenAI: {e}")
         ai_response_message = "I'm sorry, I'm having a technical issue. Please try again."
 
     state.messages.append(ChatMessage(role='assistant', content=ai_response_message))
