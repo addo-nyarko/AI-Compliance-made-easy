@@ -1,5 +1,5 @@
-# --- FINAL, WORKING server.py ---
-# --- Replace the ENTIRE content of backend/server.py with this ---
+# --- FINAL, CORRECTED server.py ---
+# --- This version fixes the "NotImplementedError" ---
 
 import os
 from dotenv import load_dotenv
@@ -40,8 +40,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Initialize clients
 db_client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
-# THIS IS THE FIX: Using your correct database name
-db = db_client.get_database("kodexcompliance_db")
+db = db_client.get_database("kodexcompliance_db") # Using your correct DB name
 
 from openai import OpenAI
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -65,6 +64,9 @@ app.add_middleware(
 # --- API Endpoints ---
 @app.get("/api/questions", response_model=List[Question])
 async def get_questions():
+    # THIS IS THE FIX: Using "is None" for the check
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database connection is not available.")
     try:
         questions_cursor = db.questions.find().sort("id", 1)
         questions_list = [Question(**doc) for doc in await questions_cursor.to_list(length=100)]
@@ -76,9 +78,10 @@ async def get_questions():
 
 @app.post("/api/conversation", response_model=ConversationResponse)
 async def handle_conversation(state: ConversationState):
-    if not openai_client:
+    # THIS IS THE FIX: Using "is None" for the checks
+    if openai_client is None:
         raise HTTPException(status_code=503, detail="OpenAI client is not initialized. Please check your API key.")
-    if not db:
+    if db is None:
         raise HTTPException(status_code=503, detail="Database connection is not available.")
 
     try:
