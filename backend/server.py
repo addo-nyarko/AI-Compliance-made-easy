@@ -1,4 +1,4 @@
-# --- FINAL, WORKING server.py ---
+# --- DIAGNOSTIC server.py (No OpenAI Call) ---
 # --- Replace the ENTIRE content of backend/server.py with this ---
 
 import os
@@ -9,7 +9,7 @@ import motor.motor_asyncio
 from pydantic import BaseModel
 from typing import List
 
-# --- Pydantic Models (data shapes) ---
+# --- Models ---
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -36,54 +36,37 @@ class ConversationResponse(BaseModel):
 # --- Environment and Database Setup ---
 load_dotenv()
 MONGODB_URI = os.getenv("MONGODB_URI")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# NOTE: We are not loading the OpenAI key for this test
 
-# Initialize clients
+# Initialize DB client
 db_client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
 db = db_client.get_database("compliance_db")
-
-from openai import OpenAI
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # --- FastAPI App ---
 app = FastAPI()
 
-# --- CORS Middleware (Allows frontend to talk to backend) ---
-origins = [
-    "https://addo-nyarko.github.io",
-    "http://localhost:3000",
-]
+# --- CORS Middleware ---
+origins = ["https://addo-nyarko.github.io", "http://localhost:3000"]
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
 
 # --- API Endpoints ---
 @app.get("/api/questions", response_model=List[Question])
 async def get_questions():
-    """
-    This endpoint now correctly fetches and formats the questions
-    for the Manual Questionnaire. This fixes the "Failed to load questions" error.
-    """
     try:
         questions_cursor = db.questions.find().sort("id", 1)
-        # Manually build the list to avoid Pydantic errors with MongoDB's _id
         questions_list = [Question(**doc) for doc in await questions_cursor.to_list(length=100)]
         return questions_list
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch questions from database: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch questions: {e}")
 
 @app.post("/api/conversation", response_model=ConversationResponse)
 async def handle_conversation(state: ConversationState):
     """
-    This is the corrected function for the chatbot, which also handles
-    database objects safely. This fixes the "Failed to start the conversation" error.
+    DIAGNOSTIC VERSION: This function does NOT call the OpenAI API.
+    It proves the database connection and the rest of the logic are working.
     """
-    if not openai_client:
-        raise HTTPException(status_code=503, detail="OpenAI client is not initialized.")
     if not db:
         raise HTTPException(status_code=503, detail="Database connection is not available.")
 
@@ -91,49 +74,17 @@ async def handle_conversation(state: ConversationState):
         all_questions_cursor = db.questions.find().sort("id", 1)
         all_questions = [Question(**doc) for doc in await all_questions_cursor.to_list(length=100)]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database query failed during conversation: {e}")
-
-    if state.messages and state.messages[-1].role == 'user':
-        last_user_message = state.messages[-1].content
-        question_to_map_index = state.current_question_index - 1
-        
-        if 0 <= question_to_map_index < len(all_questions):
-            question_to_map = all_questions[question_to_map_index]
-            mapping_prompt = f"The user is answering: '{question_to_map.question}'. The user's response was: '{last_user_message}'. Classify it as 'Yes', 'No', or 'Unsure'. Respond with ONLY the word."
-            
-            try:
-                mapping_completion = openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo", messages=[{"role": "system", "content": mapping_prompt}], temperature=0, max_tokens=5
-                )
-                mapped_answer = mapping_completion.choices[0].message.content.strip()
-                if mapped_answer not in ['Yes', 'No', 'Unsure']: mapped_answer = 'Unsure'
-                state.answered_questions.append(AnsweredQuestion(question_text=question_to_map.question, answer=mapped_answer))
-            except Exception:
-                state.answered_questions.append(AnsweredQuestion(question_text=question_to_map.question, answer='Unsure'))
+        raise HTTPException(status_code=500, detail=f"Database query failed: {e}")
 
     if state.current_question_index >= len(all_questions):
-        completion_message = "Thank you! We have completed the assessment. The final results are now available to review."
+        completion_message = "DIAGNOSTIC: End of conversation reached."
         state.messages.append(ChatMessage(role='assistant', content=completion_message))
         return ConversationResponse(ai_message=completion_message, updated_state=state, is_complete=True)
 
     current_question = all_questions[state.current_question_index]
-    greeting = "Hello! I'm your Compliance Companion. I'll ask you a series of simple questions. Let's start.\n\n"
     
-    asking_prompt = f"You are a friendly AI assistant. Your audience is non-technical. Rephrase this technical question in simple terms: '{current_question.question}'. Keep your response short and ask only one question at a time."
-    
-    full_prompt_messages = []
-    if state.current_question_index == 0:
-        full_prompt_messages.append({"role": "system", "content": greeting + asking_prompt})
-    else:
-        full_prompt_messages.append({"role": "system", "content": asking_prompt})
-
-    try:
-        asking_completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini", messages=full_prompt_messages, temperature=0.5, max_tokens=150
-        )
-        ai_response_message = asking_completion.choices[0].message.content.strip()
-    except Exception as e:
-        ai_response_message = f"I'm sorry, an error occurred with the AI model: {e}"
+    # HARDCODED RESPONSE - NO OPENAI CALL
+    ai_response_message = f"DIAGNOSTIC SUCCESS: The server is working. The problem is your OpenAI key. I would now ask about: '{current_question.question}'"
 
     state.messages.append(ChatMessage(role='assistant', content=ai_response_message))
     state.current_question_index += 1
