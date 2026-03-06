@@ -1,18 +1,15 @@
-/* === PASTE THIS ENTIRE CODE BLOCK INTO frontend/src/pages/Scan.js === */
+/* === In frontend/src/pages/Scan.js === */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Button, Modal, Form, Spinner, ListGroup, Card, Alert, Tabs, Tab } from 'react-bootstrap';
+import { Container, Button, Modal, Form, Spinner, Card, Alert, Tabs, Tab } from 'react-bootstrap';
 import axios from 'axios';
 import './Scan.css';
 
 function Scan() {
-    // --- State for Manual Form ---
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
     const [formLoading, setFormLoading] = useState(true);
     const [formError, setFormError] = useState('');
-
-    // --- State for Chatbot ---
     const [showModal, setShowModal] = useState(false);
     const [chatLoading, setChatLoading] = useState(false);
     const [chatError, setChatError] = useState('');
@@ -21,7 +18,6 @@ function Scan() {
     const [isComplete, setIsComplete] = useState(false);
     const chatBodyRef = useRef(null);
 
-    // --- Fetch Questions for Manual Form ---
     useEffect(() => {
         setFormLoading(true);
         axios.get('https://ai-compliance-made-easy.onrender.com/api/questions')
@@ -30,36 +26,30 @@ function Scan() {
                 const initialAnswers = {};
                 response.data.forEach(q => { initialAnswers[q.id] = ''; });
                 setAnswers(initialAnswers);
+                setFormError(''); // Clear previous errors on success
             })
             .catch(err => {
-                setFormError('Failed to load questions. Please refresh the page.');
+                setFormError('Failed to load questions. The backend may be starting up. Please try again in a moment.');
             })
             .finally(() => {
                 setFormLoading(false);
             });
     }, []);
 
-    // Scroll to bottom of chat
     useEffect(() => {
         if (chatBodyRef.current) {
             chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
         }
     }, [conversationState]);
 
-    // --- Manual Form Logic ---
     const handleAnswerChange = (questionId, answer) => setAnswers(prev => ({ ...prev, [questionId]: answer }));
-    const handleManualSubmit = e => {
-        e.preventDefault();
-        alert('Manual form submitted! Results:\n' + JSON.stringify(answers, null, 2));
-    };
-
-    // --- Chatbot Logic ---
+    
     const handleStartConversation = async () => {
         setShowModal(true);
         setChatLoading(true);
         setChatError('');
         setIsComplete(false);
-        setConversationState(null); // Clear previous conversation
+        setConversationState(null);
 
         try {
             const response = await axios.post('https://ai-compliance-made-easy.onrender.com/api/conversation', {
@@ -67,7 +57,7 @@ function Scan() {
             });
             setConversationState(response.data.updated_state);
         } catch (err) {
-            setChatError('Failed to start the conversation. Please check your connection or try again later.');
+            setChatError('Failed to start the conversation. The backend may be starting up. Please check your connection or try again later.');
         } finally {
             setChatLoading(false);
         }
@@ -111,25 +101,22 @@ function Scan() {
                         </Tab>
                         <Tab eventKey="manual" title="Manual Questionnaire">
                             <div className="p-3">
-                                {formLoading && <div className="text-center"><Spinner animation="border" /></div>}
+                                {formLoading && <div className="text-center"><Spinner animation="border" /><span> Loading questions...</span></div>}
                                 {formError && <Alert variant="danger">{formError}</Alert>}
                                 {questions.length > 0 && (
-                                    <Form onSubmit={handleManualSubmit}>
+                                    <Form>
                                         {questions.map((q, index) => (
                                             <Card key={q.id} className="mb-3">
                                                 <Card.Body>
                                                     <Card.Title as="h6">{index + 1}. {q.question}</Card.Title>
                                                     <Form.Group>
                                                         {q.options.map(opt => (
-                                                            <Form.Check type="radio" id={`q-${q.id}-${opt}`} label={opt} name={`q-${q.id}`} value={opt} onChange={e => handleAnswerChange(q.id, e.target.value)} checked={answers[q.id] === opt} />
+                                                            <Form.Check key={opt} type="radio" id={`q-${q.id}-${opt}`} label={opt} name={`q-${q.id}`} value={opt} onChange={e => handleAnswerChange(q.id, e.target.value)} checked={answers[q.id] === opt} />
                                                         ))}
                                                     </Form.Group>
                                                 </Card.Body>
                                             </Card>
                                         ))}
-                                        <div className="text-center mt-4">
-                                            <Button variant="success" type="submit" size="lg">Submit Manual Answers</Button>
-                                        </div>
                                     </Form>
                                 )}
                             </div>
@@ -145,8 +132,8 @@ function Scan() {
                 </Modal.Header>
                 <Modal.Body className="chat-body" ref={chatBodyRef}>
                     {chatError && <Alert variant="danger">{chatError}</Alert>}
-                    {!conversationState && chatLoading && ( // Initial loading spinner
-                        <div className="text-center p-5"><Spinner animation="border" /></div>
+                    {!conversationState && chatLoading && (
+                        <div className="text-center p-5"><Spinner animation="border" /><span> Starting conversation...</span></div>
                     )}
                     {conversationState && conversationState.messages.map((msg, i) => (
                         <div key={i} className={`message-container ${msg.role}`}><div className="message-bubble">{msg.content}</div></div>

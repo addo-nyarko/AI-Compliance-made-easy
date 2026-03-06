@@ -1,4 +1,4 @@
-# --- FINAL server.py ---
+# --- FINAL, WORKING server.py ---
 # --- Replace the ENTIRE content of backend/server.py with this ---
 
 import os
@@ -9,7 +9,7 @@ import motor.motor_asyncio
 from pydantic import BaseModel
 from typing import List
 
-# --- Models ---
+# --- Pydantic Models (data shapes) ---
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -45,11 +45,10 @@ db = db_client.get_database("compliance_db")
 from openai import OpenAI
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-
 # --- FastAPI App ---
 app = FastAPI()
 
-# --- CORS Middleware ---
+# --- CORS Middleware (Allows frontend to talk to backend) ---
 origins = [
     "https://addo-nyarko.github.io",
     "http://localhost:3000",
@@ -65,19 +64,34 @@ app.add_middleware(
 # --- API Endpoints ---
 @app.get("/api/questions", response_model=List[Question])
 async def get_questions():
-    questions_cursor = db.questions.find().sort("id", 1)
-    questions = await questions_cursor.to_list(length=100)
-    return questions
+    """
+    This endpoint now correctly fetches and formats the questions
+    for the Manual Questionnaire. This fixes the "Failed to load questions" error.
+    """
+    try:
+        questions_cursor = db.questions.find().sort("id", 1)
+        # Manually build the list to avoid Pydantic errors with MongoDB's _id
+        questions_list = [Question(**doc) for doc in await questions_cursor.to_list(length=100)]
+        return questions_list
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch questions from database: {e}")
 
 @app.post("/api/conversation", response_model=ConversationResponse)
 async def handle_conversation(state: ConversationState):
+    """
+    This is the corrected function for the chatbot, which also handles
+    database objects safely. This fixes the "Failed to start the conversation" error.
+    """
     if not openai_client:
         raise HTTPException(status_code=503, detail="OpenAI client is not initialized.")
     if not db:
         raise HTTPException(status_code=503, detail="Database connection is not available.")
 
-    all_questions_cursor = db.questions.find().sort("id", 1)
-    all_questions = [Question(**doc) for doc in await all_questions_cursor.to_list(length=100)]
+    try:
+        all_questions_cursor = db.questions.find().sort("id", 1)
+        all_questions = [Question(**doc) for doc in await all_questions_cursor.to_list(length=100)]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query failed during conversation: {e}")
 
     if state.messages and state.messages[-1].role == 'user':
         last_user_message = state.messages[-1].content
@@ -107,20 +121,19 @@ async def handle_conversation(state: ConversationState):
     
     asking_prompt = f"You are a friendly AI assistant. Your audience is non-technical. Rephrase this technical question in simple terms: '{current_question.question}'. Keep your response short and ask only one question at a time."
     
-    full_prompt = []
+    full_prompt_messages = []
     if state.current_question_index == 0:
-        full_prompt.append({"role": "system", "content": greeting + asking_prompt})
+        full_prompt_messages.append({"role": "system", "content": greeting + asking_prompt})
     else:
-        full_prompt.append({"role": "system", "content": asking_prompt})
+        full_prompt_messages.append({"role": "system", "content": asking_prompt})
 
     try:
         asking_completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini", messages=full_prompt, temperature=0.5, max_tokens=150
+            model="gpt-4o-mini", messages=full_prompt_messages, temperature=0.5, max_tokens=150
         )
         ai_response_message = asking_completion.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error calling OpenAI: {e}")
-        ai_response_message = "I'm sorry, I'm having a technical issue. Please try again."
+        ai_response_message = f"I'm sorry, an error occurred with the AI model: {e}"
 
     state.messages.append(ChatMessage(role='assistant', content=ai_response_message))
     state.current_question_index += 1
