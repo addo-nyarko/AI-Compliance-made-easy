@@ -1,45 +1,122 @@
-# --- server.py: FINAL DIAGNOSTIC (Testing Database) ---
+# --- FINAL server.py ---
 # --- Replace the ENTIRE content of backend/server.py with this ---
 
-from fastapi import FastAPI, HTTPException
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import motor.motor_asyncio
+from pydantic import BaseModel, Field
+from typing import List, Optional
 
-# --- Database Connection Code ---
+# --- Models ---
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class AnsweredQuestion(BaseModel):
+    question_text: str
+    answer: str
+
+class Question(BaseModel):
+    id: int
+    question: str
+    options: List[str]
+
+class ConversationState(BaseModel):
+    messages: List[ChatMessage]
+    answered_questions: List[AnsweredQuestion]
+    current_question_index: int = 0
+
+class ConversationResponse(BaseModel):
+    ai_message: str
+    updated_state: ConversationState
+    is_complete: bool
+
+# --- Environment and Database Setup ---
 load_dotenv()
 MONGODB_URI = os.getenv("MONGODB_URI")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-client = None
-db = None
+# Initialize clients
+client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
+db = client.get_database("compliance_db")
 
-# Check if the MONGODB_URI was loaded
-if MONGODB_URI:
-    try:
-        # This is the line that connects to the database
-        client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
-        db = client.get_database("compliance_db")
-        print("--- Successfully initialized database connection ---")
-    except Exception as e:
-        # If this fails, we will know the URI is wrong
-        print(f"--- FAILED to connect to the database: {e} ---")
-        db = None
-else:
-    print("--- MONGODB_URI not found in environment variables ---")
+from openai import OpenAI
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# --- FastAPI Application ---
+
+# --- FastAPI App ---
 app = FastAPI()
 
-# --- New Test Endpoint ---
-# This endpoint will test if we can read from the database.
-@app.get("/api/test-db")
-async def test_db_connection():
-    if db is None:
+# --- CORS Middleware ---
+origins = [
+    "https://addo-nyarko.github.io",
+    "http://localhost:3000",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- API Endpoints ---
+@app.get("/api/questions", response_model=List[Question])
+async def get_questions():
+    questions_cursor = db.questions.find().sort("id", 1)
+    questions = await questions_cursor.to_list(length=100)
+    return questions
+
+@app.post("/api/conversation", response_model=ConversationResponse)
+async def handle_conversation(state: ConversationState):
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="OpenAI client is not initialized.")
+    if not db:
         raise HTTPException(status_code=503, detail="Database connection is not available.")
+
+    all_questions_cursor = db.questions.find().sort("id", 1)
+    all_questions = [Question(**doc) for doc in await all_questions_cursor.to_list(length=100)]
+
+    if state.messages and state.messages[-1].role == 'user':
+        last_user_message = state.messages[-1].content
+        question_to_map_index = state.current_question_index - 1
+        
+        if 0 <= question_to_map_index < len(all_questions):
+            question_to_map = all_questions[question_to_map_index]
+            mapping_prompt = f"The user is answering: '{question_to_map.question}'. The user's response was: '{last_user_message}'. Classify it as 'Yes', 'No', or 'Unsure'. Respond with ONLY the word."
+            
+            try:
+                mapping_completion = openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo", messages=[{"role": "system", "content": mapping_prompt}], temperature=0, max_tokens=5
+                )
+                mapped_answer = mapping_completion.choices[0].message.content.strip()
+                if mapped_answer not in ['Yes', 'No', 'Unsure']: mapped_answer = 'Unsure'
+                state.answered_questions.append(AnsweredQuestion(question_text=question_to_map.question, answer=mapped_answer))
+            except Exception:
+                state.answered_questions.append(AnsweredQuestion(question_text=question_to_map.question, answer='Unsure'))
+
+    if state.current_question_index >= len(all_questions):
+        completion_message = "Thank you! We have completed the assessment. The final results are now available to review."
+        state.messages.append(ChatMessage(role='assistant', content=completion_message))
+        return ConversationResponse(ai_message=completion_message, updated_state=state, is_complete=True)
+
+    current_question = all_questions[state.current_question_index]
+    greeting = "Hello! I'm your Compliance Companion. I'll ask you a series of simple questions. Let's start.\n\n"
     
+    asking_prompt = f"You are a friendly AI assistant. Your audience is non-technical. Rephrase this technical question in simple terms: '{current_question.question}'. Keep your response short and ask only one question at a time."
+    if state.current_question_index == 0:
+        asking_prompt = greeting + asking_prompt
+
     try:
-        # Try to count the documents in your 'questions' collection
-        question_count = await db.questions.count_documents({})
-        return {"message": "Successfully connected to DB and fetched data!", "question_count": question_count}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database query failed: {e}")
+        asking_completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini", messages=[{"role": "system", "content": asking_prompt}], temperature=0.5, max_tokens=150
+        )
+        ai_response_message = asking_completion.choices[0].message.content.strip()
+    except Exception:
+        ai_response_message = "I'm sorry, I'm having a technical issue. Please try again."
+
+    state.messages.append(ChatMessage(role='assistant', content=ai_response_message))
+    state.current_question_index += 1
+    return ConversationResponse(ai_message=ai_response_message, updated_state=state, is_complete=False)
